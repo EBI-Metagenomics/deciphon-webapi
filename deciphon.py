@@ -1,6 +1,7 @@
 import dataclasses
 import io
 import json
+import sqlite3
 
 import fasta_reader as fr
 import xxhash
@@ -26,6 +27,14 @@ def data_parsing_error_response(error):
     error = {
         "response": "data_parsing_error",
         "error": f"{error}",
+    }
+    return jsonify(error)
+
+
+def database_not_found_response(name):
+    error = {
+        "response": "database_not_found",
+        "error": f"{name} was not found",
     }
     return jsonify(error)
 
@@ -102,4 +111,22 @@ def submit():
     req = SubmitRequest(db_name, multi_hits, hmmer3_compat, data_format, data)
     job_id = req.job_id()
     print(job_id)
+    con = sqlite3.connect("deciphon.sqlite3")
+    cur = con.cursor()
+    cur.execute("SELECT id FROM db WHERE name = ?", [db_name])
+    rows = list(cur)
+    if len(rows) < 1:
+        return database_not_found_response(db_name)
+    assert len(rows) == 1
+    # con.execute("INSERT INTO job VALUES()")
+    # id INTEGER PRIMARY KEY UNIQUE NOT NULL,
+    # db_id INTEGER REFERENCES db (id) NOT NULL,
+    # multi_hits INTEGER NOT NULL,
+    # hmmer3_compat INTEGER NOT NULL,
+    # state TEXT CHECK(state IN ('pend', 'run', 'done', 'fail')) NOT NULL,
+    # error TEXT NOT NULL,
+    # submission INTEGER NOT NULL,
+    # exec_started INTEGER NOT NULL,
+    # exec_ended INTEGER NOT NULL
+    con.close()
     return jsonify({"response": "ok", "job_id": job_id})
