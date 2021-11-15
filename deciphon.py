@@ -1,4 +1,5 @@
 import io
+from dataclasses import dataclass
 
 import fasta_reader as fr
 import xxhash
@@ -28,9 +29,54 @@ def data_parsing_error_response(error):
     return jsonify(error)
 
 
-def stream_hash(stream):
-    pass
-    # xxhash
+def stream_hash(file):
+    return xxhash.xxh64(file).intdigest()
+
+
+def read_fasta(data):
+    with io.StringIO(data) as file:
+        return fr.read_fasta(file).read_items()
+
+
+def standardize_fasta_data(raw):
+    items = read_fasta(raw)
+    with io.StringIO() as tmp:
+        with fr.write_fasta(tmp, ncols=60) as file:
+            for item in items:
+                print(item.defline)
+                print(item.sequence)
+                file.write_item(item.defline, item.sequence)
+
+            return tmp.getvalue()
+
+
+@dataclass
+class SubmitRequest:
+    db_name: str
+    multi_hits: str
+    hmmer3_compat: str
+    data_format: str
+    data: str
+
+    def __init__(
+        self,
+        db_name: str,
+        multi_hits: str,
+        hmmer3_compat: str,
+        data_format: str,
+        data: str,
+    ):
+        assert multi_hits in ["true", "false"]
+        assert hmmer3_compat in ["true", "false"]
+        assert data_format == "fasta"
+        self.db_name = db_name
+        self.multi_hits = multi_hits
+        self.hmmer3_compat = hmmer3_compat
+        self.data_format = data_format
+        self.data = data
+
+    def intdigest(self) -> int:
+        return stream_hash(jsonify(self))
 
 
 @app.post("/submit")
@@ -47,13 +93,11 @@ def submit():
     if data_format != "fasta":
         return invalid_data_format_response(data_format)
 
-    with io.StringIO(request.form["data"]) as file:
-        try:
-            items = fr.read_fasta(file).read_items()
-            with io.StringIO() as out:
-                with fr.write_fasta(out) as ofile:
-                    pass
-        except fr.ParsingError as e:
-            return data_parsing_error_response(str(e))
+    try:
+        data = standardize_fasta_data(request.form["data"])
+    except fr.ParsingError as e:
+        return data_parsing_error_response(str(e))
 
+    req = SubmitRequest(db_name, multi_hits, hmmer3_compat, data_format, data)
+    print(req)
     return jsonify(request.form)
