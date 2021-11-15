@@ -1,0 +1,30 @@
+Everything parameters would be an ASCI string.
+
+Entry points would be URLs with data provided via post.
+
+Sumit 1
+-------
+
+POST to http://localhost/submit:
+
+    db_name (any string)
+    multi_hits (true or false)
+    hmmer3_compat (true or false)
+    data_format (fasta)
+    data (content of a fasta file)
+
+I would parse the data using `fasta-reader`, write the sequences
+using `fasta-reader` into a buffer (so we eliminate characters data
+that don't matter to the query). Compute the xxh3 64-bits hash
+of all the above (let it be `job_id`).
+
+begin_transaction();
+INSERT into job VALUES (job_id, db_name, ...);
+for seq_name, seq in DATA:
+    INSERT into seq VALUES (job_id, seq_name0, seq0);
+end_transaction();
+
+Return to the user a JSON response:
+
+    response: ok
+    job_id: `job_id`
