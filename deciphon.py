@@ -1,5 +1,6 @@
+import dataclasses
 import io
-from dataclasses import dataclass
+import json
 
 import fasta_reader as fr
 import xxhash
@@ -29,8 +30,8 @@ def data_parsing_error_response(error):
     return jsonify(error)
 
 
-def stream_hash(file):
-    return xxhash.xxh64(file).intdigest()
+def stream_hash(data):
+    return xxhash.xxh64(data).intdigest()
 
 
 def read_fasta(data):
@@ -50,7 +51,7 @@ def standardize_fasta_data(raw):
             return tmp.getvalue()
 
 
-@dataclass
+@dataclasses.dataclass
 class SubmitRequest:
     db_name: str
     multi_hits: str
@@ -75,8 +76,8 @@ class SubmitRequest:
         self.data_format = data_format
         self.data = data
 
-    def intdigest(self) -> int:
-        return stream_hash(jsonify(self))
+    def job_id(self) -> int:
+        return stream_hash(json.dumps(dataclasses.asdict(self)))
 
 
 @app.post("/submit")
@@ -99,5 +100,6 @@ def submit():
         return data_parsing_error_response(str(e))
 
     req = SubmitRequest(db_name, multi_hits, hmmer3_compat, data_format, data)
-    print(req)
-    return jsonify(request.form)
+    job_id = req.job_id()
+    print(job_id)
+    return jsonify({"response": "ok", "job_id": job_id})
